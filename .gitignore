@@ -1,0 +1,35 @@
+# Ellya Skill - .gitignore
+
+# Ignore generated files
+outputs/*
+!.gitkeep
+
+# Ignore selfie outputs
+output/*
+styles/*
+
+# Ignore Python venv (use uv.lock to reinstall)
+.venv/*
+__pycache__/
+
+# Ignore sensitive data
+*.pem
+*.key
+*.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+pyproject.toml
+uv.lock
+
+# Publish artifacts and local publish caches
+.publish-dist/
+.npm-cache/
+.uv-cache/
+publish.ps1
+publish.cmd
