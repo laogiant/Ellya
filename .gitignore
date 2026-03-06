@@ -31,5 +31,12 @@ uv.lock
 .publish-dist/
 .npm-cache/
 .uv-cache/
-publish.ps1
-publish.cmd
+publish.bat
+publish/
+
+# Files to be published (excluded from git, copied to publish/)
+ANALYSIS_PROMPT.md
+README.md
+SKILL.md
+scripts/
+templates/
