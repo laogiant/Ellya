@@ -50,14 +50,25 @@ SCENE_EXTRACT_PROMPT = (
 
 # Prompt to classify scene type and generate context
 SCENE_CLASSIFICATION_PROMPT = (
-    "Analyze the following scene and character information, determine which shooting type it belongs to, "
-    "and generate corresponding content.\n\n"
+    "You are a professional photography director analyzing a photo for a series shoot.\n"
+    "Analyze the scene and character, then determine the best shooting approach.\n\n"
     "Scene: {scene}\n"
     "Character: {character}\n\n"
+    "CLASSIFICATION GUIDELINES:\n"
+    "- Choose STORY mode if: outdoor location, public space, narrative potential (street, cafe, park, beach, etc.)\n"
+    "- Choose POSE mode if: studio setting, plain background, portrait-focused, controlled environment\n\n"
+    "If STORY mode:\n"
+    "- Create a realistic, achievable story plot\n"
+    "- Focus on physical actions the person can actually do in this location\n"
+    "- Keep it simple and concrete (e.g., 'A casual afternoon walk in the park')\n"
+    "- Avoid abstract concepts or impossible scenarios\n\n"
+    "If POSE mode:\n"
+    "- Describe the shooting environment and lighting\n"
+    "- Focus on technical photography aspects\n"
+    "- Keep it brief and factual\n\n"
     "Reply ONLY with this format (no other content):\n"
     "MODE: [story or pose]\n"
-    "CONTEXT: [If story mode: write a brief story plot (1-2 sentences) describing the person's story in this scene. "
-    "If pose mode: write a brief scene summary (1-2 sentences) describing the shooting background and atmosphere]"
+    "CONTEXT: [Brief, realistic description as specified above]"
 )
 
 # Prompt to generate pose variations with specific angles and postures
@@ -80,13 +91,41 @@ POSE_VARIATION_PROMPT = (
 # Prompt to generate story-continuation scenes
 # {count}, {scene}, {character}, {context}, {numbered_list} will be replaced at runtime
 STORY_VARIATION_PROMPT = (
-    "Based on the following scene, character, and story plot, generate {count} story-continuation scene descriptions "
-    "for generating a photo sequence.\n\n"
+    "You are a professional photographer directing a photo story sequence.\n"
+    "Based on the following scene, character, and story plot, generate {count} story-continuation scene descriptions.\n"
+    "Each description must be written from a PHOTOGRAPHER'S PERSPECTIVE with technical shooting details.\n\n"
     "Scene: {scene}\n"
     "Character: {character}\n"
     "Story Plot: {context}\n\n"
-    "Each scene should be a natural extension of the story, showing different moments or actions. "
-    "Ensure logical progression and distinct activities.\n\n"
+    "CRITICAL RULES:\n"
+    "1. PHOTOGRAPHER'S PERSPECTIVE: Describe each scene as a photo shoot direction.\n"
+    "   - Include camera angle (e.g., front-facing, three-quarter view, side profile, overhead, low-angle)\n"
+    "   - Include body posture (e.g., standing upright, seated with legs crossed, leaning forward)\n"
+    "   - Include facial expression and eye direction (e.g., looking at camera, gazing away, smiling)\n"
+    "   - Include hand/arm position (e.g., hands in pockets, arms crossed, holding object)\n"
+    "   - Example GOOD: 'Three-quarter angle shot: walking along the path, looking ahead with a slight smile, arms swinging naturally at sides'\n"
+    "   - Example BAD: 'Walking in the park' (missing camera angle and body details)\n\n"
+    "2. PHYSICALLY REALISTIC: Every scene must be physically possible and make common sense.\n"
+    "   - If person is outdoors, they can walk, sit, stand, or interact with surroundings\n"
+    "   - If person is indoors, they can move between rooms, sit, or interact with objects\n"
+    "   - NO impossible actions (e.g., 'flying', 'teleporting', 'appearing in two places')\n"
+    "   - NO abstract concepts (e.g., 'feeling the moment', 'being one with nature')\n\n"
+    "3. DISTINCT ACTIVITIES: Each scene must show a GENUINELY DIFFERENT action or moment.\n"
+    "   - NOT acceptable: just adding/removing accessories (hat, scarf, bag)\n"
+    "   - NOT acceptable: same pose with different facial expression only\n"
+    "   - ACCEPTABLE: different location within scene, different body position, different interaction\n"
+    "   - Example: 'walking' → 'sitting on bench' → 'looking at phone' → 'talking to someone'\n\n"
+    "4. LOGICAL PROGRESSION: Scenes should flow naturally in time and space.\n"
+    "   - Person can move to nearby locations (different part of park, next room, etc.)\n"
+    "   - Actions should follow realistic time sequence\n"
+    "   - Maintain consistency (same outfit, same time of day unless explicitly changing)\n\n"
+    "5. SPECIFIC AND CONCRETE: Each description must be clear and actionable for photo generation.\n"
+    "   - Include: camera angle, exact location, body position, what person is doing, facial expression\n"
+    "   - Example GOOD: 'Front-facing shot: sitting on a wooden bench, reading a book, legs crossed, relaxed expression'\n"
+    "   - Example BAD: 'Enjoying the peaceful atmosphere'\n\n"
+    "6. MAINTAIN CHARACTER IDENTITY: Keep the same person throughout all scenes.\n"
+    "   - Same appearance, same outfit (unless story involves changing)\n"
+    "   - Consistent with character description provided\n\n"
     "Reply ONLY with this format (no other content):\n"
     "{numbered_list}"
 )
@@ -302,26 +341,26 @@ def extract_scene_and_character(image_part, api_key: str) -> tuple[str, str]:
 
 
 def classify_scene_and_generate_context(scene: str, character: str, count: int, api_key: str) -> tuple[str, str, list[str]]:
-    """由AI自动识别场景类型，并生成相应的上下文内容和变体列表
+    """Automatically classify scene type and generate corresponding context and variations
     
-    - 如果识别为story模式：生成简短的故事情节，并生成指定数量的故事延展场景
-    - 如果识别为pose模式：生成简短的场景总结，并生成指定数量的不同角度、姿势参数
+    - If classified as story mode: generates brief story plot and specified number of story-continuation scenes
+    - If classified as pose mode: generates brief scene summary and specified number of angle/posture parameters
     
     Args:
-        scene: 从图片中提取的场景描述
-        character: 从图片中提取的角色描述
-        count: 要生成的变体数量
-        api_key: Gemini API密钥
+        scene: Scene description extracted from image
+        character: Character description extracted from image
+        count: Number of variations to generate
+        api_key: Gemini API key
         
     Returns:
-        (mode, context, variations) 元组
-        - mode: "story" 或 "pose"
-        - context: 故事情节（story模式）或场景总结（pose模式）
-        - variations: 用于生成图片的描述列表（长度为count）
+        (mode, context, variations) tuple
+        - mode: "story" or "pose"
+        - context: Story plot (story mode) or scene summary (pose mode)
+        - variations: List of descriptions for image generation (length = count)
     """
     client = genai.Client(api_key=api_key)
     
-    # 第一步：由AI判断场景类型并生成相应内容
+    # Step 1: AI determines scene type and generates corresponding content
     classification_prompt = SCENE_CLASSIFICATION_PROMPT.format(
         scene=scene or "unspecified",
         character=character or "unspecified"
@@ -337,7 +376,7 @@ def classify_scene_and_generate_context(scene: str, character: str, count: int, 
         print(f"Scene classification error: {exc}")
         return "story", "A moment in the scene", ["A photorealistic portrait in the scene"] * count
     
-    # 解析AI响应
+    # Parse AI response
     mode = "story"
     context = ""
     
@@ -349,7 +388,7 @@ def classify_scene_and_generate_context(scene: str, character: str, count: int, 
         elif line.upper().startswith("CONTEXT:"):
             context = line[len("CONTEXT:"):].strip()
     
-    # 第二步：根据模式生成相应的变体描述
+    # Step 2: Generate corresponding variations based on mode
     if mode == "story":
         variations = generate_story_variations(scene, character, context, count, api_key)
     else:
@@ -359,13 +398,13 @@ def classify_scene_and_generate_context(scene: str, character: str, count: int, 
 
 
 def generate_pose_variations(scene: str, character: str, context: str, count: int, api_key: str) -> list[str]:
-    """为pose模式生成指定数量的角度、姿势参数"""
+    """Generate specified number of angle and posture parameters for pose mode"""
     client = genai.Client(api_key=api_key)
     
-    # 生成编号列表
+    # Generate numbered list
     numbered_list = "\n".join([f"{i}. [Detailed description of angle and posture {i}]" for i in range(1, count + 1)])
     
-    # 使用顶部定义的提示词模板
+    # Use prompt template defined at top of file
     pose_prompt = POSE_VARIATION_PROMPT.format(
         count=count,
         scene=scene or "unspecified",
@@ -382,7 +421,7 @@ def generate_pose_variations(scene: str, character: str, context: str, count: in
         text = extract_first_text(response)
     except Exception as exc:
         print(f"Pose variation generation error: {exc}")
-        # 返回默认的pose变体，循环填充到count数量
+        # Return default pose variations, cycle fill to count
         defaults = [
             "front-facing pose, looking directly at camera, confident expression",
             "three-quarter angle, relaxed natural expression",
@@ -390,7 +429,7 @@ def generate_pose_variations(scene: str, character: str, context: str, count: in
             "seated pose, relaxed and casual",
             "dynamic standing pose, energetic stance"
         ]
-        # 循环填充到count数量
+        # Cycle fill to count
         result = []
         for i in range(count):
             result.append(defaults[i % len(defaults)])
@@ -405,9 +444,9 @@ def generate_pose_variations(scene: str, character: str, context: str, count: in
         if cleaned:
             variations.append(cleaned)
     
-    # 确保返回指定数量的变体
+    # Ensure returning specified number of variations
     if len(variations) < count:
-        # 如果不足，用默认值循环补充
+        # If insufficient, cycle fill with defaults
         defaults = [
             "front-facing pose, looking directly at camera, confident expression",
             "three-quarter angle, relaxed natural expression",
@@ -421,14 +460,57 @@ def generate_pose_variations(scene: str, character: str, context: str, count: in
     return variations[:count]
 
 
+def is_valid_story_variation(variation: str) -> bool:
+    """
+    Validate if a story variation meets quality standards.
+    
+    Returns False if the variation contains:
+    - Abstract/vague descriptions (e.g., "enjoying", "feeling", "experiencing")
+    - Impossible actions (e.g., "flying", "teleporting")
+    - Only accessory changes without action changes
+    - Too short or generic descriptions
+    
+    Returns True if the variation is specific, concrete, and physically realistic.
+    """
+    variation_lower = variation.lower()
+    
+    # Check for abstract/vague terms
+    abstract_terms = [
+        "enjoying", "feeling", "experiencing", "being one with",
+        "atmosphere", "moment", "peaceful", "serene", "tranquil",
+        "essence", "spirit", "vibe", "energy"
+    ]
+    if any(term in variation_lower for term in abstract_terms):
+        return False
+    
+    # Check for impossible actions
+    impossible_actions = [
+        "flying", "teleporting", "floating", "levitating",
+        "appearing", "disappearing", "transforming"
+    ]
+    if any(action in variation_lower for action in impossible_actions):
+        return False
+    
+    # Check if too short (less than 5 words is likely too vague)
+    if len(variation.split()) < 5:
+        return False
+    
+    # Check for only accessory mentions without actions
+    accessory_only_pattern = r"^(wearing|with|holding|carrying)\s+(a|an|the)\s+\w+$"
+    if re.match(accessory_only_pattern, variation_lower):
+        return False
+    
+    return True
+
+
 def generate_story_variations(scene: str, character: str, context: str, count: int, api_key: str) -> list[str]:
-    """为story模式生成指定数量的故事延展场景"""
+    """Generate specified number of story continuation scenes for story mode"""
     client = genai.Client(api_key=api_key)
     
-    # 生成编号列表
+    # Generate numbered list template
     numbered_list = "\n".join([f"{i}. [Detailed description of story scene {i}]" for i in range(1, count + 1)])
     
-    # 使用顶部定义的提示词模板
+    # Use prompt template defined at top of file
     story_prompt = STORY_VARIATION_PROMPT.format(
         count=count,
         scene=scene or "unspecified",
@@ -445,43 +527,86 @@ def generate_story_variations(scene: str, character: str, context: str, count: i
         text = extract_first_text(response)
     except Exception as exc:
         print(f"Story variation generation error: {exc}")
-        # 返回默认的story变体，循环填充到count数量
+        # Return concrete default story variations with camera angles, cycle fill to count
         defaults = [
-            "A moment in the scene",
-            "Another moment",
-            "Continuing the story",
-            "Final moment",
-            "A new perspective"
+            "Front-facing shot: standing in the location, looking around at the surroundings, relaxed posture with hands at sides",
+            "Three-quarter angle: walking to a different spot, observing the environment, natural walking stance",
+            "Side profile view: sitting down in a comfortable position, relaxed posture with legs crossed",
+            "Low-angle shot: interacting with a nearby object or feature in the scene, leaning forward slightly",
+            "Overhead angle: standing up and preparing to move to the next location, looking ahead with confident expression"
         ]
-        # 循环填充到count数量
+        # Cycle fill to count
         result = []
         for i in range(count):
             result.append(defaults[i % len(defaults)])
         return result
     
+    # Parse and validate variations
     variations = []
     for line in text.splitlines():
         line = line.strip()
         if not line:
             continue
         cleaned = re.sub(r"^\d+[.)\s]+", "", line).strip()
-        if cleaned:
+        if cleaned and is_valid_story_variation(cleaned):
             variations.append(cleaned)
     
-    # 确保返回指定数量的变体
+    # Ensure we return the specified count
     if len(variations) < count:
-        # 如果不足，用默认值循环补充
+        # If insufficient, cycle fill with concrete defaults including camera angles
         defaults = [
-            "A moment in the scene",
-            "Another moment",
-            "Continuing the story",
-            "Final moment",
-            "A new perspective"
+            "Front-facing shot: standing in the location, looking around at the surroundings, relaxed posture with hands at sides",
+            "Three-quarter angle: walking to a different spot, observing the environment, natural walking stance",
+            "Side profile view: sitting down in a comfortable position, relaxed posture with legs crossed",
+            "Low-angle shot: interacting with a nearby object or feature in the scene, leaning forward slightly",
+            "Overhead angle: standing up and preparing to move to the next location, looking ahead with confident expression"
         ]
         while len(variations) < count:
             variations.append(defaults[len(variations) % len(defaults)])
     
     return variations[:count]
+def is_valid_story_variation(variation: str) -> bool:
+    """
+    Validate if a story variation meets quality standards.
+
+    Returns False if the variation contains:
+    - Abstract/vague descriptions (e.g., "enjoying", "feeling", "experiencing")
+    - Impossible actions (e.g., "flying", "teleporting")
+    - Only accessory changes without action changes
+    - Too short or generic descriptions
+
+    Returns True if the variation is specific, concrete, and physically realistic.
+    """
+    variation_lower = variation.lower()
+
+    # Check for abstract/vague terms
+    abstract_terms = [
+        "enjoying", "feeling", "experiencing", "being one with",
+        "atmosphere", "moment", "peaceful", "serene", "tranquil",
+        "essence", "spirit", "vibe", "energy"
+    ]
+    if any(term in variation_lower for term in abstract_terms):
+        return False
+
+    # Check for impossible actions
+    impossible_actions = [
+        "flying", "teleporting", "floating", "levitating",
+        "appearing", "disappearing", "transforming"
+    ]
+    if any(action in variation_lower for action in impossible_actions):
+        return False
+
+    # Check if too short (less than 5 words is likely too vague)
+    if len(variation.split()) < 5:
+        return False
+
+    # Check for only accessory mentions without actions
+    accessory_only_pattern = r"^(wearing|with|holding|carrying)\s+(a|an|the)\s+\w+$"
+    if re.match(accessory_only_pattern, variation_lower):
+        return False
+
+    return True
+
 
 
 def do_generate_series(
@@ -545,10 +670,10 @@ def do_generate_series(
     # Override with custom variations if provided
     if custom_variations:
         print(f"Using {len(custom_variations)} custom variation(s).")
-        variations = custom_variations[:count]  # 限制到count数量
+        variations = custom_variations[:count]  # Limit to count
         mode = "custom"
 
-    # 确保variations数量不超过count
+    # Ensure variations count does not exceed count
     variations = variations[:count]
 
     all_saved: list[str] = []
